@@ -1,7 +1,6 @@
 import { CardSlot } from "./Cards.js";
 
 export default class Player {
-  
   id = 1;
   name = "vadim";
 
@@ -33,6 +32,7 @@ export class PlayerInstance {
     this.effects.push(effectInstance);
   }
 
+  // TODO: Remove this. It's useless.
   hasEffectById(effectId) {
     return this.effects.find(e => e.id === effectId) !== undefined;
   }
@@ -41,6 +41,15 @@ export class PlayerInstance {
     return this.effects.find(query) !== undefined;
   }
 
+  findEffect(query) {
+    return this.effects.find(query);
+  }
+
+  removeEffect(effectId) {
+    this.effects.splice(effectId, 1);
+  }
+
+  // TODO: Also should be useless
   removeEffectById(effectId) {
     const id = this.effects.findIndex(e => e.id === effectId);
     if (id >= 0) this.effects.splice(id, 1);

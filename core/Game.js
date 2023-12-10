@@ -16,46 +16,50 @@ export class TurnState {
   slotId = 0;
 }
 
+// Export - just for the test
+export const cardsConfiguration = { amount: 36, nodes: [
+    { w: 5/6, name: "Non mana cards", group: [
+      { w: 1, name: "Damage cards", group: [
+        { w: 1, v: Cards.ARROW.id },
+        { w: 1, v: Cards.FIREBALL.id },
+        { w: 1, v: Cards.REPEAT.id },
+      ]},
+      { w: 1, name: "Non damage cards", group: [
+        { w: 1, v: Cards.SHIELD.id },
+        { w: 1, v: Cards.REVERSE.id },
+      ]},
+    ]},
+    // It was 1/6 (more balanced)
+    { w: 2/6, name: "Mana cards", group: [
+      { w: 5/6, name: "1 mana cards", group: [
+        { w: 1, v: Cards.HEAL.id },
+        { w: 1, v: Cards.ANCHOR.id },       // TODO: TEST IT
+        // { w: 1, v: Cards.CRATER.id },    // TODO: TEST IT
+        { w: 1, v: Cards.SAINT_SHIELD.id }, // TODO: TEST IT
+      ]},
+      { w: 1/6, name: "3 mana cards", group: [
+        { w: 1, v: Cards.IMITATOR.id }
+      ]},
+    ]},
+  ]};
+
+
 /**
  * Describes the state of the game.
  */
 export default class Game {
 
   id = undefined;
+
   turn = new TurnState();
+
   state = GameState.WAITING_FOR_PLAYERS;
+
   desk = [ new CardSlot(), new CardSlot(), new CardSlot(), new CardSlot(), new CardSlot(), new CardSlot() ];
+
   players = [];
 
-  cards = new RandomDistributor({ nodes: [
-    /*
-    { w: 1, v: Cards.HEAL.id },
-    { w: 1, v: Cards.ANCHOR.id },
-    { w: 1, v: Cards.SAINT_SHIELD.id },
-    */
-    { w: 5/6, name: "Non mana cards", group: [
-      { w: 1, name: "Damage cards", group: [
-        { w: 1, v: Cards.ARROW.id },
-        { w: 1, v: Cards.FIREBALL.id },
-      ]},
-      { w: 1, name: "Non damage cards", group: [
-        { w: 1, v: Cards.REPEAT.id },
-        { w: 1, v: Cards.SHIELD.id },
-        { w: 1, v: Cards.REVERSE.id },
-      ]},
-    ]},
-    { w: 1/6, name: "Mana cards", group: [
-      { w: 2/3, name: "1 mana cards", group: [
-        { w: 1, v: Cards.HEAL.id },
-        { w: 1, v: Cards.ANCHOR.id },       // TODO: TEST IT
-        { w: 1, v: Cards.CRATER.id },       // TODO: TEST IT
-        { w: 1, v: Cards.SAINT_SHIELD.id }, // TODO: TEST IT
-      ]},
-      { w: 1/3, name: "3 mana cards", group: [
-        { w: 1, v: Cards.IMITATOR.id }
-      ]},
-    ]},
-  ]});
+  decks = {};
 
   /**
    * Constructs a game with provided data
@@ -63,7 +67,9 @@ export default class Game {
    */
   constructor(data) {
     Object.assign(this, data);
-    this.cards = new RandomDistributor(this.cards);
+    for (const playerId in this.decks) {
+      this.decks[playerId] = new RandomDistributor(this.decks[playerId]);
+    }
     this.desk = this.desk.map(d => new CardSlot(d));
     this.players = this.players.map(d => new PlayerInstance(d));
   }
@@ -75,8 +81,12 @@ export default class Game {
    */
   addPlayer(playerId, properties) {
     console.log("GM -> Player added");
-    const player = new PlayerInstance({ id: playerId, mana: 3, ...properties });
+
+    const player = new PlayerInstance({ id: playerId, mana: 0, ...properties });
     this.players.push(player);
+
+    // Create deck for this particular player
+    this.decks[playerId] = new RandomDistributor(cardsConfiguration);
 
     // Add 6 card slots to the player hand
     for (let i = 0; i < 6; i++) {
@@ -84,11 +94,11 @@ export default class Game {
       this.pullCard(playerId, false);
     }
 
-    if (this.players.length === 2) this.completeTurn();
+    if (this.players.length === 2) 
+      this.completeTurn();
     
-    if (!this.turn.playerId) {
+    if (!this.turn.playerId) 
       this.turn.playerId = player.id;
-    }
 
     return player;
   }
@@ -359,7 +369,7 @@ export default class Game {
     const player = this.getPlayer(playerId);
     const availableSlotId = player.hand.findIndex(cardSlot => !cardSlot.hasCard());
     if (availableSlotId >= 0) {
-      const card = Cards.getCardById(this.cards.pick());
+      const card = Cards.getCardById(this.decks[playerId].pick());
       player.hand[availableSlotId].setCard(card.createInstance({ owner: player.id }));
     }
   }
@@ -428,7 +438,11 @@ export default class Game {
         // we will use the same player for the first turn (the last value of this.turn.playerId)
         this.state = GameState.PLAYER_TURN;
         this.clearDesk();
-        this.players.forEach(p => p.effects = []);
+
+        this.players.forEach(p => {
+          p.effects = p.effects.filter(e => e.getEffect().isPersistant());
+        });
+
         this.turn.turns += 1;
         this.giveMana(this.turn.playerId);
       }

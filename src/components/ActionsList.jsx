@@ -1,5 +1,6 @@
 import { Actions } from "../../core/Actions";
 import { Effects } from "../../core/Effects";
+import { Cards } from "../../core/Cards";
 import style from "./ActionsList.module.css"
 
 export default function ActionsList({ actions, game }) {
@@ -49,7 +50,7 @@ export default function ActionsList({ actions, game }) {
     }
 
     if (action.type === Actions.PIN) {
-      const cardName = game.desk[action.cardId].getCard().getCard().name;
+      const cardName = Cards.getCardById(action.cardId).name;
       return renderAction(actions.id, "link-45deg",
         (<>{ targetPlayer.name } закрепил карту { cardName }</>))
     }

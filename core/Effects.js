@@ -16,6 +16,10 @@ export class Effect {
   hasTrait(trait) {
     return this.traits.find(t => t === trait) !== undefined;
   }
+
+  isPersistant() {
+    return this.persistant ?? false;
+  }
 }
 
 export const Effects = {
@@ -43,7 +47,13 @@ export const Effects = {
 }
 
 export class EffectInstance {
+
   constructor({ id }) {
     this.id = id;
   }
+
+  getEffect() {
+    return Effects.getEffectById(this.id);
+  }
+
 }

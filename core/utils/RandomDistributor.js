@@ -1,3 +1,4 @@
+
 function shuffle(array) {
   for (let i = array.length - 1; i >= 1; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -7,8 +8,12 @@ function shuffle(array) {
   }
 }
 
-// TODO(vadim): Rename this to something better
-export default class RandomDistributor {
+/**
+ * Takes a collection of objects and probability with which
+ * they should be returned by this picker. Used to pick cards from
+ * the deck.
+ */
+export default class ObjectPicker {
 
   values = [];
   nodes = [];
@@ -16,8 +21,7 @@ export default class RandomDistributor {
 
   constructor(props) {
     Object.assign(this, props);
-    this.generate();
-    this.shuffle();
+    this.reset();
   }
 
   pick() {
@@ -27,33 +31,16 @@ export default class RandomDistributor {
       return result;
     }
 
+    // TODO: We probably want to do something else in this case
     return undefined;
   }
 
-  /*
-  pick(nodes = this.nodes) {
-    let sum = 0;
-    // TODO(vadim): Good thing to do: to not re-calculate sum of weights every call
-    nodes.forEach(node => sum += node.weight ?? node.w);
-
-    // NOTE: Please do not return "undefined". It will be very hard to reproduce.
-    const pickValue = Math.random() * sum;
-    // const pickValue = (this.pickInteger() / 999) * sum;
-
-    let range = 0;
-    for (let node of nodes) {
-      range += node.weight ?? node.w;
-      if (pickValue <= range) {
-        if (node.value || node.v) return node.value ?? node.v;
-        if (node.group) return this.pick(node.group);
-        else return nodes[0].value ?? node[0].v;
-      }
-    }
-
-    return nodes[0].value ?? nodes[0].v;
+  reset() {
+    this.values = [];
+    this.generate();
+    this.shuffle();
+    this.pickIndex = 0;
   }
-  */
-
 
   generate(amount = this.amount, nodes = this.nodes) {
     let sum = 0;
@@ -63,8 +50,9 @@ export default class RandomDistributor {
     for (let node of nodes) {
 
       const nodeAmount = Math.floor(unit * (node.weight ?? node.w));
-      if (amount < 1) {
+      if (nodeAmount < 1) {
         console.error("There is no enough space for " + (node.v ?? node.value));
+        continue;
       }
 
       if (node.value ?? node.v) {

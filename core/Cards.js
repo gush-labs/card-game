@@ -26,11 +26,11 @@ export default class Card {
 }
 
 function dealDamage(actions, player, opponent, damage) {
-  if (opponent.hasEffectById(Effects.HAS_SHIELD.id)) {
+  const hasShield = opponent.hasEffect(e => e.getEffect().hasTrait("shield"));
+  if (hasShield) {
     actions.push(Action.damageBlocked(opponent.id, player.id, damage));
     return;
   };
-
   actions.push(Action.damage(opponent.id, player.id, damage));
   opponent.health -= damage;
 }
@@ -72,12 +72,19 @@ export const Cards = {
     damage: 6,
 
     action({ actions, player, opponent }) {
-      if (opponent.hasEffectById(Effects.HAS_SHIELD.id)) {
-        opponent.removeEffectById(Effects.HAS_SHIELD.id);
+      const shieldId = opponent.findEffect(e => e.getEffect().hasTrait("shield"));
+      if (shieldId !== undefined) {
+
+        // TODO: Remove code below
+        // if (opponent.hasEffectById(Effects.HAS_SHIELD.id)) {
+        //opponent.removeEffectById(Effects.HAS_SHIELD.id);
+
+        opponent.removeEffect(shieldId);
         actions.push(Action.effectRemoved(opponent.id, Effects.HAS_SHIELD.id));
       } else {
         dealDamage(actions, player, opponent, this.damage);
       }
+
     }
   }),
 
@@ -167,7 +174,7 @@ export const Cards = {
     action({ game, player, actions, targetSlotId }) {
       const cardInstance = game.desk[targetSlotId].getCard();
       if (cardInstance) {
-        actions.push(Action.pinCard(player.id, targetSlotId));
+        actions.push(Action.pinCard(player.id, cardInstance.getCard().id));
         cardInstance.pinned = true;
       }
     }
@@ -202,7 +209,8 @@ export const Cards = {
     },
 
     action(context) {
-      const { player } = context;
+      const { player, actions } = context;
+      actions.push(Action.effectAdded(player.id, Effects.SAINT_SHIELD.id))
       player.addEffect(Effects.SAINT_SHIELD.createInstance());
     }
   }),
@@ -234,16 +242,21 @@ export const Cards = {
       return 3;
     },
 
+    repeatCard(context) {
+      const { game, slotId } = context;
+      if (game.desk[slotId].hasCard()) {
+        game.desk[slotId].getCard().getCard().action(context);
+      }
+    },
+
     action(context) {
       const { game, slotId } = context;
 
-      let [ cardInstance1, cardSlotId1 ] = game.getPrevDeskCard(slotId);
-      if (!cardInstance1) return;
-      cardInstance1.getCard().action({ ...context, slotId: cardSlotId1 });
+      const [ c1, targetSlotId1 ] = game.getPrevDeskCard(slotId)
+      repeatCard({ ...context, slotId: targetSlotId1 });
 
-      let [ cardInstance2, cardSlotId2 ] = game.getPrevDeskCard(cardSlotId1);
-      if (!cardInstance2) return;
-      cardInstance2.getCard().action({ ...context, slotId: cardSlotId2 });
+      const [ c2, targetSlotId2 ] = game.getPrevDeskCard(targetSlotId1);
+      repeatCard({ ...context, slotId: targetSlotId2 });
     }
   }),
 

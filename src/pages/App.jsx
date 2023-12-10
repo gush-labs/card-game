@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import GamePage from "./Game"
 import HomePage from "./Home"
 import Player from "../../core/Player";
@@ -31,7 +31,7 @@ export default function App() {
     />
   )
 
-  // if (gameId) return gamePage;
-  // return homePage;
-  return <Demo />
+  if (gameId) return gamePage;
+  return homePage;
+  // return <Demo />
 }
