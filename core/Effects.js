@@ -33,7 +33,7 @@ export const Effects = {
   SAINT_SHIELD: new Effect({ 
     id: "SAINT_SHIELD", 
     name: "Святой щит", 
-    traits: [ 'sheild' ],
+    traits: [ 'shield' ],
     persistant: true 
   }),
 

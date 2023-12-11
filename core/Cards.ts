@@ -1,31 +1,67 @@
 import { Action } from "./Actions.js";
-import { Effects } from "./Effects.js";
+import { EffectInstance, Effects } from "./Effects.js";
+import Game from "./Game.js";
+import { PlayerInstance } from "./Player.js";
 
 export const CardType = {
-  // Anything that player can place on the desk
-  SPELL: "SPELL",
-  // Add buffs to cards on the desk.
-  ENCHANT: "ENCHANT",
+  SPELL: "SPELL", // Can be placed on the desk
+  ENCHANT: "ENCHANT", // Modifies cards on the desk
 }
+
+type CardActionContext = {
+  game: Game,
+  player: PlayerInstance,
+  opponent: PlayerInstance,
+  actions: any[], // TODO: Replace with the proper type
+  slotId: number,
+  targetSlotId: number,
+}
+
+type GetManaContext = {
+  targetSlotId: number,
+}
+
+type EnchantApplyContext = {
+  game: Game,
+  targetSlotId: number,
+}
+
+type CardParameters = {
+  id: string,
+  icon: string,
+  name: string
+  description: string,
+  type: string,
+  damage?: number,
+  hasManaCost: boolean,
+
+  action: (context: CardActionContext) => void,
+  getManaCost: (context?: GetManaContext) => number | undefined,
+  canApplyEnchant: (context: EnchantApplyContext) => boolean,
+};
 
 export default class Card {
   id = "shield";
   icon = "shield-shaded";
   name = "";
   description = "";
-  action = undefined;
   type = CardType.SPELL;
+  hasManaCost: boolean = false;
 
-  constructor(data) {
+  action: (context: CardActionContext) => void = () => {};
+  getManaCost: (context?: GetManaContext) => number | undefined = () => undefined;
+  canApplyEnchant: (context: EnchantApplyContext) => boolean = () => false;
+
+  constructor(data: CardParameters & any) {
     Object.assign(this, data);
   }
 
-  createInstance(props) {
+  createInstance(props: any) {
     return new CardInstance({ id: this.id, ...props });
   }
 }
 
-function dealDamage(actions, player, opponent, damage) {
+function dealDamage(actions: any[], player: PlayerInstance, opponent: PlayerInstance, damage: number) {
   const hasShield = opponent.hasEffect(e => e.getEffect().hasTrait("shield"));
   if (hasShield) {
     actions.push(Action.damageBlocked(opponent.id, player.id, damage));
@@ -43,8 +79,9 @@ export const Cards = {
     name: "Щит", 
     description: "Создает щит который блокирует весь последующий урон. Некоторые заклинания способны уничтожить данный щит.",
     type: CardType.SPELL,
+    hasManaCost: false,
 
-    action({ actions, player }) {
+    action({ actions, player }: CardActionContext) {
       actions.push(Action.effectAdded(player.id, Effects.HAS_SHIELD.id))
       player.addEffect(Effects.HAS_SHIELD.createInstance());
     }
@@ -57,9 +94,10 @@ export const Cards = {
     description: "Наносит 3 урона сопернику.",
     type: CardType.SPELL,
     damage: 3,
+    hasManaCost: false,
 
-    action({ actions, player, opponent }) {
-      dealDamage( actions, player, opponent, this.damage);
+    action({ actions, player, opponent }: CardActionContext) {
+      dealDamage( actions, player, opponent, this.damage!);
     }
    }),
 
@@ -70,21 +108,15 @@ export const Cards = {
     description: "Уничтожает один щит соперника. Если щитов у соперника нет, то наносит 6 урона.",
     type: CardType.SPELL,
     damage: 6,
+    hasManaCost: false,
 
-    action({ actions, player, opponent }) {
-      const shieldId = opponent.findEffect(e => e.getEffect().hasTrait("shield"));
-      if (shieldId !== undefined) {
-
-        // TODO: Remove code below
-        // if (opponent.hasEffectById(Effects.HAS_SHIELD.id)) {
-        //opponent.removeEffectById(Effects.HAS_SHIELD.id);
-
-        opponent.removeEffect(shieldId);
-        actions.push(Action.effectRemoved(opponent.id, Effects.HAS_SHIELD.id));
+    action({ actions, player, opponent }: CardActionContext) {
+      const shieldQuery = (e: EffectInstance) => e.getEffect().hasTrait("shield");
+      if (opponent.hasEffect(shieldQuery)) {
+        opponent.removeLatestEffect(shieldQuery);
       } else {
-        dealDamage(actions, player, opponent, this.damage);
+        dealDamage(actions, player, opponent, this.damage!);
       }
-
     }
   }),
 
@@ -94,28 +126,21 @@ export const Cards = {
     name: "Воровство заклинания", 
     description: "Ворует следующее заклинание если оно принадлежит сопернику." ,
     type: CardType.SPELL,
+    hasManaCost: false,
 
-    // TODO(vadim): Rename to "isAffected" and "currentSlotId" to "slotId"
-    // and accept the object
-    isCardAffected({ game, player, currentSlotId, targetSlotId }) {
-      if (game.desk[targetSlotId].hasCard()) {
-        const [ cardInstance, slotId ] = game.getNextDeskCard(currentSlotId);
-        return targetSlotId === slotId && cardInstance.owner !== player.id;
-      }
-      return false;
-    },
+    action(context: CardActionContext) {
+      const { actions, game, slotId, player, opponent } = context;
 
-    action(context) {
-      const { actions, game, slotId, player } = context;
-      game.desk.forEach((cardSlot, cardSlotId) => {
-        if (this.isCardAffected({ ...context, currentSlotId: slotId, targetSlotId: cardSlotId })) {
-          const cardInstance = cardSlot.getCard();
-          if (cardInstance.owner !== player.id) {
-            cardInstance.owner = player.id;
-            actions.push(Action.changeOwner(cardInstance));
-          }
+      for (let i = slotId + 1; i < game.desk.length; i++) {
+        const cardInstance = game.desk[i].getCard();
+        if (!cardInstance) continue;
+
+        if (cardInstance.owner === opponent.id) {
+          cardInstance.owner = player.id;
+          actions.push(Action.changeOwner(cardInstance));
+          break;
         }
-      });
+      }
     }
   }),
 
@@ -125,32 +150,18 @@ export const Cards = {
     name: "Магический повтор",
     description: "Повторяет предыдущее заклинание от вашего имени.", 
     type: CardType.SPELL,
+    hasManaCost: false,
 
-    // TODO(vadim): Rename to "isAffected" and "currentSlotId" to "slotId"
-    // and accept the object
-    /**
-     * Returns true if card in targetSlotId is affected by this spell.
-     */
-    isCardAffected(game, currentSlotId, targetSlotId) {
-      if (game.desk[targetSlotId].hasCard()) {
-        const [ cardInstance, slotId ] = game.getPrevDeskCard(currentSlotId);
-        return slotId === targetSlotId;
-      }
-      return false;
-    },
-
-    action(context) {
+    action(context: CardActionContext) {
       const { game, slotId } = context;
-      game.desk.forEach((cardSlot, cardSlotId) => {
-        // avoid stack overflow
-        if (cardSlotId === slotId) return; 
 
-        const cardInstance = cardSlot.getCard();
-        if (this.isCardAffected(game, slotId, cardSlotId)) {
-          const card = Cards.getCardByInstance(cardInstance);
-          card.action({ ...context, slotId: cardSlotId });
+      for (let i = slotId - 1; i >= 0; i++) {
+        const cardInstance = game.desk[i].getCard();
+        if (cardInstance) {
+          cardInstance.getCard().action({ ...context, slotId: i })
+          break;
         }
-      });
+      }
     },
   }),
 
@@ -160,18 +171,19 @@ export const Cards = {
     name: "Якорь",
     description: "Закрепляет выбранную вами карту. Данную карту не сможет перемещать как ваш соперник, так и вы.",
     type: CardType.ENCHANT,
+    hasManaCost: true,
 
-    isAffected({ game, targetSlotId }) {
-      return game.desk[targetSlotId].hasCard() && !game.desk[targetSlotId].getCard().pinned;
+    canApplyEnchant({ game, targetSlotId }: EnchantApplyContext) {
+      return game.desk[targetSlotId].getCard()?.pinned ?? false;
     },
 
-    getManaCost(props) {
-      if (!props) return undefined;
-      const { targetSlotId } = props;
+    getManaCost(context: GetManaContext | undefined) {
+      if (!context) return undefined;
+      const { targetSlotId } = context;
       return targetSlotId > 2 ? 3 - (targetSlotId - 3) : targetSlotId + 1;
     },
 
-    action({ game, player, actions, targetSlotId }) {
+    action({ game, player, actions, targetSlotId }: CardActionContext) {
       const cardInstance = game.desk[targetSlotId].getCard();
       if (cardInstance) {
         actions.push(Action.pinCard(player.id, cardInstance.getCard().id));
@@ -186,12 +198,13 @@ export const Cards = {
     name: "Лечение",
     description: "Восстанавливает 9 здоровья. Требует одну ману.",
     type: CardType.SPELL,
+    hasManaCost: true,
 
     getManaCost() {
       return 1;
     },
 
-    action({ actions, player }) {
+    action({ actions, player }: CardActionContext) {
       actions.push(Action.heal(player.id, 9));
       player.health += 9;
     }
@@ -203,12 +216,13 @@ export const Cards = {
     name: "Святой щит",
     description: "Создает щит который блокирует последующий урон. Если щит не был уничтожен, то он остается у вас даже после окончания хода. Некоторые заклинания способны уничтожить данный щит.",
     type: CardType.SPELL,
+    hasManaCost: true,
 
     getManaCost() {
       return 1;
     },
 
-    action(context) {
+    action(context: CardActionContext) {
       const { player, actions } = context;
       actions.push(Action.effectAdded(player.id, Effects.SAINT_SHIELD.id))
       player.addEffect(Effects.SAINT_SHIELD.createInstance());
@@ -221,12 +235,13 @@ export const Cards = {
     name: "Кратер",
     description: "Запрещает использование выбранной вами ячейки. В ячейку, на которое было произведенно данное зачарование, нельзя будет положить карту.",
     type: CardType.ENCHANT,
+    hasManaCost: true,
 
     getManaCost() {
       return 1;
     },
 
-    action({ game, targetSlotId }) {
+    action({ game, targetSlotId }: CardActionContext) {
       // TOOD(vadim): Write this
     }
   }),
@@ -237,26 +252,14 @@ export const Cards = {
     name: "Имитатор",
     description: "Повторяет предыдущие два заклинания.",
     type: CardType.SPELL,
+    hasManaCost: true,
 
     getManaCost() {
       return 3;
     },
 
-    repeatCard(context) {
-      const { game, slotId } = context;
-      if (game.desk[slotId].hasCard()) {
-        game.desk[slotId].getCard().getCard().action(context);
-      }
-    },
-
-    action(context) {
-      const { game, slotId } = context;
-
-      const [ c1, targetSlotId1 ] = game.getPrevDeskCard(slotId)
-      repeatCard({ ...context, slotId: targetSlotId1 });
-
-      const [ c2, targetSlotId2 ] = game.getPrevDeskCard(targetSlotId1);
-      repeatCard({ ...context, slotId: targetSlotId2 });
+    action(context: CardActionContext) {
+      // implement
     }
   }),
 
@@ -268,6 +271,7 @@ export const Cards = {
     name: "Отравление",
     description: "Накладывает на соперника отравление. Отравление будет отнимать 2 очка здоровья перед каждым зачитанным заклинанием в этом ходу.",
     type: CardType.SPELL,
+    hasManaCost: true,
 
     getManaCost() {
       return 1;
@@ -284,24 +288,18 @@ export const Cards = {
     name: "Предзнаменование",
     description: "Повторяет последнее заклинание которое будет прочитано в этом раунде.",
     type: CardType.SPELL,
+    hasManaCost: true,
     
-    action(context) {
-      const { game, slotId } = context;
-
-      const [ cardInstance, cardSlot ] = game.getLastDeskCard();
-      if (cardInstance && cardSlot !== slotId) {
-        cardInstance.action({ ...context, slotId: cardSlot });
-      }
-    }
+    action({}) {}
   }),
 
-
-  getCardById(cardId) {
-    return this[cardId];
+  getCardById(cardId: string): Card {
+    // Don't like that cast? Go cry about it.
+    return (this as any)[cardId];
   },
 
-  getCardByInstance(cardInstance) {
-    return this[cardInstance.id];
+  getCardByInstance(cardInstance: CardInstance): Card {
+    return (this as any)[cardInstance.id];
   }
 
 };
@@ -311,23 +309,24 @@ export const CardEffects = {
 }
 
 export class CardInstance {
-  id = undefined;
-  owner = undefined;
-  effects = [];
+  id: string = "";
+  owner: number | undefined = undefined;
+  effects: any[] = [];
+  pinned: boolean = false;
 
-  constructor(data) {
+  constructor(data: any) {
     Object.assign(this, data);
   }
 
-  hasEffect(effect) {
+  hasEffect(effect: any) {
     return this.effects.find(v => v === effect) !== undefined;
   }
 
-  addEffect(effect) {
+  addEffect(effect: any) {
     this.effects.push(effect);
   }
 
-  getCard() {
+  getCard(): Card {
     return Cards.getCardByInstance(this);
   }
 }
@@ -336,9 +335,9 @@ export class CardSlot {
 
   // TODO(vadim): Rename 'card' to 'cardInstance' otherwise
   // it is too much confusion
-  card = undefined;
+  card: CardInstance | undefined;
   
-  constructor(data) {
+  constructor(data?: any) {
     Object.assign(this, data);
     if (this.card) this.card = new CardInstance(this.card);
   }
@@ -347,12 +346,12 @@ export class CardSlot {
     return this.card !== undefined;
   }
 
-  setCard(cardInstance) {
+  setCard(cardInstance: CardInstance) {
     this.card = cardInstance;
   }
 
   // TODO: Rename to "getCardInstance"
-  getCard() {
+  getCard(): CardInstance | undefined {
     return this.card;
   }
 

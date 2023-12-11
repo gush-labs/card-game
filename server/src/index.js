@@ -7,6 +7,7 @@ import { v4 as uuid } from "uuid";
 // TODO(vadim): We will need environment variables or some
 // sort of configuration for the server
 const server = new WebSocketServer({ port: 8080 });
+console.log("Server has started");
 
 // TODO(vadim): Move anything not related to handling
 // events from client connections, to a separate class

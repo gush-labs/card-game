@@ -16,7 +16,7 @@ export default function CardSlot({ cardInstance, selected, enabled, highlighted,
   }, [ enabled, onClick ])
 
   let cost = undefined;
-  if (card && card.getManaCost) {
+  if (card && card.hasManaCost) {
     cost = (
       <div className={`${ style.Cost }`}>
         { card.getManaCost() ?? "?" } <Icon icon='hexagon-fill'/>

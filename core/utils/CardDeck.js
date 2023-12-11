@@ -9,11 +9,10 @@ function shuffle(array) {
 }
 
 /**
- * Takes a collection of objects and probability with which
- * they should be returned by this picker. Used to pick cards from
- * the deck.
+ * Represents a card deck for the player. Every card
+ * has a specific probability to be picked.
  */
-export default class ObjectPicker {
+export default class CardDeck {
 
   values = [];
   nodes = [];

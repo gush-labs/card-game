@@ -217,7 +217,7 @@ export function useGameView(connection, playerInfo, gameId) {
 
   function showManaCostFor(cardInstance) {
     const card = Cards.getCardByInstance(cardInstance);
-    if (card.getManaCost) setManaCost(card.getManaCost());
+    if (card.hasManaCost) setManaCost(card.getManaCost());
     else setManaCost(0);
   };
 

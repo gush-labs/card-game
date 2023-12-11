@@ -1,4 +1,4 @@
-import RandomDistributor from "../../core/utils/RandomDistributor";
+import RandomDistributor from "../../core/utils/CardDeck";
 import { Cards } from "../../core/Cards";
 import CardSlot from "../components/CardSlot";
 import "./Demo.css";

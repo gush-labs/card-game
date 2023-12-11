@@ -99,7 +99,7 @@ export default function GamePage({ playerInfo, connection, gameId }) {
                   enabled={ gameSession.enabledDeskSlots[slotId] }
                   onClick={ () => gameSession.selectDeskSlot(slotId) } 
                   selected={ gameSession.slotSelection.isSlotSelected('desk', slotId) } 
-                  highlighted={ game.isSlotExecuted(slotId) }
+                  highlighted={ game.isCardSlotExecuted(slotId) }
                   onInfo={ () => onInfo(cardSlot.getCard()?.getCard()) }
                 />
               </DeskSlot>
